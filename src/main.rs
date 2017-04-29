@@ -5,7 +5,6 @@ extern crate time;
 
 use clap::{Arg, App};
 use mpd::{Client, State};
-use std::net::TcpStream;
 
 fn main() {
     let matches = App::new("process-slack-status")
@@ -48,14 +47,14 @@ fn main() {
 
 fn set_status(api_token: &str, api_url: &str, version_uid: &str, status_text: &str, status_emoji: &str) {
    let current_time = time::get_time();
-    let inner = "{\"status_text\":\"".to_owned() + status_text + "\", \"status_emoji\":\"" + status_emoji + "\"}";
+    let inner = format!("{{\"status_text\": \"{}\", \"status_emoji\": \"{}\"}}", status_text, status_emoji);
     let params = [
         ("token", api_token),
         ("profile", inner.as_str()),
     ];
     let client = reqwest::Client::new().unwrap();
 
-    let url: String = api_url.to_owned() + "users.profile.set?_x_id=" + version_uid + "-" + format!("{}", current_time.sec).as_str();
+    let url = format!("{}users.profile.set?_x_id={}-{}", api_url, version_uid, current_time.sec);
     let res = client.post(url.as_str())
         .form(&params)
         .send()
