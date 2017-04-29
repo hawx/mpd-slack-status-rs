@@ -1,0 +1,6 @@
+[package]
+name = "process-slack-status"
+version = "0.1.0"
+authors = ["Joshua Hawxwell <m@hawx.me>"]
+
+[dependencies]
