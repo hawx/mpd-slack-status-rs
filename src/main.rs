@@ -27,47 +27,48 @@ fn main() {
              .takes_value(true)
              .required(true)
              .help("The Slack version uid"))
+        .arg(Arg::with_name("mpdUrl")
+             .long("mpd-url")
+             .value_name("URL")
+             .takes_value(true)
+             .required(false)
+             .help("URL to mpd instance (default: 127.0.0.1:6600)"))
         .get_matches();
 
     let api_token = matches.value_of("apiToken").unwrap();
     let api_url = matches.value_of("apiUrl").unwrap();
     let version_uid = matches.value_of("versionUid").unwrap();
+    let mpd_url = matches.value_of("mpdUrl").unwrap_or("127.0.0.1:6600");
 
-    let mut conn = Client::connect("127.0.0.1:6600").unwrap();
+    let mut conn = Client::connect(mpd_url).unwrap();
+    let mut last_status = "-".to_owned();
 
+    loop {
+        last_status = on_change(&mut conn, api_token, api_url, version_uid, last_status.to_owned());
 
-    let mut last_status = String::new();
+        conn.wait(&[Subsystem::Player]).unwrap();
+    }
+}
+
+fn on_change(conn: &mut Client, api_token: &str, api_url: &str, version_uid: &str, last_status: String) -> String {
+    let play_status = conn.status().unwrap();
 
     if play_status.state == State::Play {
         let current_song = conn.currentsong().unwrap().unwrap();
 
         let text = format!("{} - {}", current_song.title.unwrap(), current_song.tags["Artist"]);
-        set_status(api_token, api_url, version_uid, text.as_str(), ":headphones:");
-        last_status = text;
+        if last_status != text {
+            set_status(api_token, api_url, version_uid, text.as_str(), ":headphones:");
+            return text
+        }
     } else {
-        set_status(api_token, api_url, version_uid, "I don't even", ":question:");
-    }
-
-    loop {
-        let subsytem = conn.wait(&[Subsystem::Player]).unwrap();
-
-        let play_status = conn.status().unwrap();
-        if play_status.state == State::Play {
-            let current_song = conn.currentsong().unwrap().unwrap();
-
-            let text = format!("{} - {}", current_song.title.unwrap(), current_song.tags["Artist"]);
-
-            if last_status != text {
-                set_status(api_token, api_url, version_uid, text.as_str(), ":headphones:");
-                last_status = text;
-            }
-        } else {
-            if last_status != String::new() {
-                set_status(api_token, api_url, version_uid, "I don't even", ":question:");
-                last_status = String::new();
-            }
+        if last_status != String::new() {
+            set_status(api_token, api_url, version_uid, "I don't even", ":question:");
+            return String::new();
         }
     }
+
+    return last_status;
 }
 
 fn set_status(api_token: &str, api_url: &str, version_uid: &str, status_text: &str, status_emoji: &str) {
