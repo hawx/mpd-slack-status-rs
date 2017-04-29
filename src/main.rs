@@ -1,9 +1,11 @@
 extern crate clap;
-use clap::{Arg, App};
-
+extern crate mpd;
 extern crate reqwest;
-
 extern crate time;
+
+use clap::{Arg, App};
+use mpd::{Client, State};
+use std::net::TcpStream;
 
 fn main() {
     let matches = App::new("process-slack-status")
@@ -31,8 +33,22 @@ fn main() {
     let api_url = matches.value_of("apiUrl").unwrap();
     let version_uid = matches.value_of("versionUid").unwrap();
 
-    let current_time = time::get_time();
-    let inner = "{\"status_text\":\"".to_owned() + "foo" + "\", \"status_emoji\":\"" + ":question:" + "\"}";
+    let mut conn = Client::connect("127.0.0.1:6600").unwrap();
+    let play_status = conn.status().unwrap();
+
+    if play_status.state == State::Play {
+        let current_song = conn.currentsong().unwrap().unwrap();
+
+        let text = format!("{} - {}", current_song.title.unwrap(), current_song.tags["Artist"]);
+        set_status(api_token, api_url, version_uid, text.as_str(), ":headphones:");
+    } else {
+        set_status(api_token, api_url, version_uid, "I don't even", ":question:");
+    }
+}
+
+fn set_status(api_token: &str, api_url: &str, version_uid: &str, status_text: &str, status_emoji: &str) {
+   let current_time = time::get_time();
+    let inner = "{\"status_text\":\"".to_owned() + status_text + "\", \"status_emoji\":\"" + status_emoji + "\"}";
     let params = [
         ("token", api_token),
         ("profile", inner.as_str()),
